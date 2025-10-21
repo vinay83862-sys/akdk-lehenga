@@ -1,6 +1,5 @@
-// Dashboard.js (Original Look Maintained)
 import React, { useState, useEffect, useCallback } from 'react';
-import { ref, onValue, query, orderByChild, startAt, endAt } from 'firebase/database';
+import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase';
 import './Dashboard.css';
 
