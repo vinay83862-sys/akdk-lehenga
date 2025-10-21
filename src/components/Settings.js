@@ -4,7 +4,6 @@ import { db } from '../firebase';
 import './Settings.css';
 
 function Settings() {
-  const [users, setUsers] = useState([]);
   const [salesmen, setSalesmen] = useState([]);
   const [storeConfig, setStoreConfig] = useState({
     storeName: 'Lehenga Store',
@@ -20,19 +19,6 @@ function Settings() {
   const [activeTab, setActiveTab] = useState('general');
 
   useEffect(() => {
-    // Load users
-    const usersRef = ref(db, 'users');
-    onValue(usersRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const usersList = Object.entries(data).map(([id, user]) => ({
-          id,
-          ...user
-        }));
-        setUsers(usersList);
-      }
-    });
-
     // Load salesmen
     const salesmenRef = ref(db, 'salesmen');
     onValue(salesmenRef, (snapshot) => {

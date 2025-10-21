@@ -10,7 +10,6 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeOrders, setActiveOrders] = useState(0);
-  const [orders, setOrders] = useState([]);
 
   const userName = user?.displayName || user?.email || 'Admin User';
   const userRole = user?.role || 'Administrator';
@@ -32,6 +31,120 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
     }, 1000);
 
     const ordersRef = ref(db, 'Orders');
+    
+    // Move generateNotifications inside useEffect to fix dependency
+    const generateNotifications = (ordersArray) => {
+      const now = new Date();
+      const newNotifications = [];
+      const storedNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
+      
+      // Check for overdue orders
+      ordersArray.forEach(order => {
+        if (order.deliveryDate && order.status !== 'Delivered' && order.status !== 'Cancelled') {
+          const deliveryDate = parseDeliveryDate(order.deliveryDate);
+          if (deliveryDate && deliveryDate < now) {
+            const notificationId = `overdue-${order.id}`;
+            if (!storedNotifications.includes(notificationId)) {
+              newNotifications.push({
+                id: notificationId,
+                type: 'alert',
+                title: '🚨 Overdue Order',
+                message: `Order #${order.billNumber} for ${order.customerName} is overdue`,
+                time: getRelativeTime(new Date()),
+                read: false,
+                icon: '⚠️',
+                orderId: order.id,
+                timestamp: Date.now()
+              });
+            }
+          }
+        }
+
+        // New orders (created in last 24 hours)
+        if (order.createdAt) {
+          const orderDate = new Date(order.createdAt);
+          const hoursDiff = (now - orderDate) / (1000 * 60 * 60);
+          if (hoursDiff < 24) {
+            const notificationId = `new-${order.id}`;
+            if (!storedNotifications.includes(notificationId)) {
+              newNotifications.push({
+                id: notificationId,
+                type: 'order',
+                title: '🛍️ New Order Received',
+                message: `New order #${order.billNumber} from ${order.customerName}`,
+                time: `${Math.floor(hoursDiff)} hours ago`,
+                read: false,
+                icon: '🛍️',
+                orderId: order.id,
+                timestamp: order.createdAt
+              });
+            }
+          }
+        }
+      });
+
+      // Sort notifications by timestamp (newest first)
+      newNotifications.sort((a, b) => b.timestamp - a.timestamp);
+      
+      setNotifications(newNotifications);
+      setUnreadCount(newNotifications.length);
+    };
+
+    const parseDeliveryDate = (dateValue) => {
+      if (!dateValue) return null;
+      
+      try {
+        let date;
+        
+        // Handle DD-MM-YYYY format
+        if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
+          const parts = dateValue.split('-');
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          date = new Date(year, month, day);
+        } 
+        // Handle DD/MM/YYYY format
+        else if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+          const parts = dateValue.split('/');
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          date = new Date(year, month, day);
+        }
+        // Handle YYYY-MM-DD format
+        else if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
+          date = new Date(dateValue);
+        }
+        // Handle timestamps
+        else if (typeof dateValue === 'number') {
+          date = new Date(dateValue);
+        }
+        // Handle Firebase timestamp objects
+        else if (typeof dateValue === 'object' && dateValue.seconds) {
+          date = new Date(dateValue.seconds * 1000);
+        }
+        else {
+          date = new Date(dateValue);
+        }
+        
+        return isNaN(date.getTime()) ? null : date;
+      } catch (error) {
+        console.error('Error parsing delivery date:', error);
+        return null;
+      }
+    };
+
+    const getRelativeTime = (date) => {
+      const now = new Date();
+      const diffInSeconds = Math.floor((now - date) / 1000);
+      
+      if (diffInSeconds < 60) return 'Just now';
+      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+      if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+      return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    };
+
     onValue(ordersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -39,8 +152,6 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
           id: key,
           ...value
         }));
-        
-        setOrders(ordersArray);
         
         // Calculate active orders (not delivered or cancelled)
         const active = ordersArray.filter(order => 
@@ -55,118 +166,6 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
 
     return () => clearInterval(timer);
   }, []);
-
-  const generateNotifications = (orders) => {
-    const now = new Date();
-    const newNotifications = [];
-    const storedNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
-    
-    // Check for overdue orders
-    orders.forEach(order => {
-      if (order.deliveryDate && order.status !== 'Delivered' && order.status !== 'Cancelled') {
-        const deliveryDate = parseDeliveryDate(order.deliveryDate);
-        if (deliveryDate && deliveryDate < now) {
-          const notificationId = `overdue-${order.id}`;
-          if (!storedNotifications.includes(notificationId)) {
-            newNotifications.push({
-              id: notificationId,
-              type: 'alert',
-              title: '🚨 Overdue Order',
-              message: `Order #${order.billNumber} for ${order.customerName} is overdue`,
-              time: getRelativeTime(new Date()),
-              read: false,
-              icon: '⚠️',
-              orderId: order.id,
-              timestamp: Date.now()
-            });
-          }
-        }
-      }
-
-      // New orders (created in last 24 hours)
-      if (order.createdAt) {
-        const orderDate = new Date(order.createdAt);
-        const hoursDiff = (now - orderDate) / (1000 * 60 * 60);
-        if (hoursDiff < 24) {
-          const notificationId = `new-${order.id}`;
-          if (!storedNotifications.includes(notificationId)) {
-            newNotifications.push({
-              id: notificationId,
-              type: 'order',
-              title: '🛍️ New Order Received',
-              message: `New order #${order.billNumber} from ${order.customerName}`,
-              time: `${Math.floor(hoursDiff)} hours ago`,
-              read: false,
-              icon: '🛍️',
-              orderId: order.id,
-              timestamp: order.createdAt
-            });
-          }
-        }
-      }
-    });
-
-    // Sort notifications by timestamp (newest first)
-    newNotifications.sort((a, b) => b.timestamp - a.timestamp);
-    
-    setNotifications(newNotifications);
-    setUnreadCount(newNotifications.length);
-  };
-
-  const parseDeliveryDate = (dateValue) => {
-    if (!dateValue) return null;
-    
-    try {
-      let date;
-      
-      // Handle DD-MM-YYYY format
-      if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
-        const parts = dateValue.split('-');
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const year = parseInt(parts[2], 10);
-        date = new Date(year, month, day);
-      } 
-      // Handle DD/MM/YYYY format
-      else if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-        const parts = dateValue.split('/');
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const year = parseInt(parts[2], 10);
-        date = new Date(year, month, day);
-      }
-      // Handle YYYY-MM-DD format
-      else if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
-        date = new Date(dateValue);
-      }
-      // Handle timestamps
-      else if (typeof dateValue === 'number') {
-        date = new Date(dateValue);
-      }
-      // Handle Firebase timestamp objects
-      else if (typeof dateValue === 'object' && dateValue.seconds) {
-        date = new Date(dateValue.seconds * 1000);
-      }
-      else {
-        date = new Date(dateValue);
-      }
-      
-      return isNaN(date.getTime()) ? null : date;
-    } catch (error) {
-      console.error('Error parsing delivery date:', error);
-      return null;
-    }
-  };
-
-  const getRelativeTime = (date) => {
-    const now = new Date();
-    const diffInSeconds = Math.floor((now - date) / 1000);
-    
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    return `${Math.floor(diffInSeconds / 86400)} days ago`;
-  };
 
   const getInitials = (name) => {
     return name

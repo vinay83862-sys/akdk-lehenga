@@ -1,5 +1,5 @@
 // OrdersTable.js - Enhanced with Advanced Search (Fixed View Details)
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase';
 import './OrdersTable.css';
@@ -84,6 +84,63 @@ function OrdersTable({ onEditOrder, onNavigate, highlightOrder }) {
     }
   }, [highlightOrder, orders]);
 
+  // Wrap isDeliveryDateOverdue with useCallback to fix dependency
+  const isDeliveryDateOverdue = useCallback((deliveryDate) => {
+    const parsedDate = parseDeliveryDate(deliveryDate);
+    if (!parsedDate) return false;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    parsedDate.setHours(0, 0, 0, 0);
+    
+    return parsedDate < today;
+  }, []);
+
+  const parseDeliveryDate = (dateValue) => {
+    if (!dateValue) return null;
+    
+    try {
+      let date;
+      
+      // Handle DD-MM-YYYY format
+      if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
+        const parts = dateValue.split('-');
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        date = new Date(year, month, day);
+      } 
+      // Handle DD/MM/YYYY format
+      else if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+        const parts = dateValue.split('/');
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        date = new Date(year, month, day);
+      }
+      // Handle YYYY-MM-DD format
+      else if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
+        date = new Date(dateValue);
+      }
+      // Handle timestamps
+      else if (typeof dateValue === 'number') {
+        date = new Date(dateValue);
+      }
+      // Handle Firebase timestamp objects
+      else if (typeof dateValue === 'object' && dateValue.seconds) {
+        date = new Date(dateValue.seconds * 1000);
+      }
+      else {
+        date = new Date(dateValue);
+      }
+      
+      return isNaN(date.getTime()) ? null : date;
+    } catch (error) {
+      console.error('Error parsing delivery date:', error);
+      return null;
+    }
+  };
+
   // Filter orders based on all criteria
   useEffect(() => {
     let result = orders;
@@ -141,7 +198,7 @@ function OrdersTable({ onEditOrder, onNavigate, highlightOrder }) {
     
     setFilteredOrders(result);
     setCurrentPage(1);
-  }, [orders, searchTerm, statusFilter, showOverdue, showPendingAmount, dateRange]);
+  }, [orders, searchTerm, statusFilter, showOverdue, showPendingAmount, dateRange, isDeliveryDateOverdue]);
 
   // Pagination logic
   useEffect(() => {
@@ -183,62 +240,6 @@ function OrdersTable({ onEditOrder, onNavigate, highlightOrder }) {
       const salesman = salesmen.find(s => s.id === salesmanId);
       return salesman ? salesman.name : salesmanId;
     }).join(', ');
-  };
-
-  const parseDeliveryDate = (dateValue) => {
-    if (!dateValue) return null;
-    
-    try {
-      let date;
-      
-      // Handle DD-MM-YYYY format
-      if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
-        const parts = dateValue.split('-');
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const year = parseInt(parts[2], 10);
-        date = new Date(year, month, day);
-      } 
-      // Handle DD/MM/YYYY format
-      else if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-        const parts = dateValue.split('/');
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const year = parseInt(parts[2], 10);
-        date = new Date(year, month, day);
-      }
-      // Handle YYYY-MM-DD format
-      else if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
-        date = new Date(dateValue);
-      }
-      // Handle timestamps
-      else if (typeof dateValue === 'number') {
-        date = new Date(dateValue);
-      }
-      // Handle Firebase timestamp objects
-      else if (typeof dateValue === 'object' && dateValue.seconds) {
-        date = new Date(dateValue.seconds * 1000);
-      }
-      else {
-        date = new Date(dateValue);
-      }
-      
-      return isNaN(date.getTime()) ? null : date;
-    } catch (error) {
-      console.error('Error parsing delivery date:', error);
-      return null;
-    }
-  };
-
-  const isDeliveryDateOverdue = (deliveryDate) => {
-    const parsedDate = parseDeliveryDate(deliveryDate);
-    if (!parsedDate) return false;
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    parsedDate.setHours(0, 0, 0, 0);
-    
-    return parsedDate < today;
   };
 
   const formatDate = (dateValue) => {
