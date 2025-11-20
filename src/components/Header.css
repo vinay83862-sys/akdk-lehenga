@@ -1,17 +1,18 @@
-/* Header.css (Enhanced Premium Theme) */
+/* Header.css (Enhanced Premium Theme with Glassmorphism) */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 15px 35px;
-  background: linear-gradient(135deg, #1a1f36 0%, #2d3748 100%);
+  background: rgba(26, 31, 54, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   box-shadow: 0 4px 25px rgba(0, 0, 0, 0.4);
   margin-bottom: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(20px);
 }
 
 .header-left {
@@ -171,7 +172,7 @@
   top: 100%;
   right: 0;
   width: 380px;
-  background: linear-gradient(135deg, #1a1f36 0%, #2d3748 100%);
+  background: linear-gradient(135deg, rgba(26, 31, 54, 0.95) 0%, rgba(45, 55, 72, 0.95) 100%);
   border-radius: 16px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   margin-top: 15px;
@@ -245,6 +246,27 @@
 .notification-list {
   max-height: 400px;
   overflow-y: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.notification-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.notification-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.notification-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.notification-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .notification-item {
@@ -255,6 +277,20 @@
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
+  animation: notificationSlideIn 0.3s ease-out;
+  will-change: transform, background-color;
+  border-left: 4px solid transparent;
+}
+
+@keyframes notificationSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .notification-item:hover {
@@ -264,7 +300,22 @@
 
 .notification-item.unread {
   background: rgba(102, 126, 234, 0.1);
-  border-left: 4px solid #667eea;
+}
+
+.notification-overdue {
+  border-left-color: #f56565;
+}
+
+.notification-new {
+  border-left-color: #48bb78;
+}
+
+.notification-payment {
+  border-left-color: #ed8936;
+}
+
+.notification-status {
+  border-left-color: #4299e1;
 }
 
 .notification-icon {
@@ -417,25 +468,6 @@
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
   font-weight: 500;
-}
-
-/* Scrollbar for notification list */
-.notification-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.notification-list::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
-}
-
-.notification-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-}
-
-.notification-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
 }
 
 /* Responsive Design */

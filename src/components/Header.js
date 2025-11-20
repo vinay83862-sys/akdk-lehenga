@@ -1,5 +1,5 @@
-// Header.js (Fixed with Proper Notifications and onNavigate handling)
-import React, { useState, useEffect } from 'react';
+// Header.js (COMPLETELY FIXED with useCallback and Enhanced Features)
+import React, { useState, useEffect, useCallback } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase';
 import './Header.css';
@@ -24,6 +24,196 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
     'settings': 'Settings & Configuration'
   };
 
+  const notificationCategories = {
+    overdue: { icon: '⚠️', color: '#f56565', priority: 1 },
+    new: { icon: '🛍️', color: '#48bb78', priority: 2 },
+    payment: { icon: '💰', color: '#ed8936', priority: 3 },
+    status: { icon: '📦', color: '#4299e1', priority: 4 }
+  };
+
+  // Move functions outside useEffect with useCallback
+  const parseDeliveryDate = useCallback((dateValue) => {
+    if (!dateValue) return null;
+    
+    try {
+      let date;
+      
+      // Handle DD-MM-YYYY format
+      if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
+        const parts = dateValue.split('-');
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        date = new Date(year, month, day);
+      } 
+      // Handle DD/MM/YYYY format
+      else if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+        const parts = dateValue.split('/');
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        date = new Date(year, month, day);
+      }
+      // Handle YYYY-MM-DD format
+      else if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
+        date = new Date(dateValue);
+      }
+      // Handle timestamps
+      else if (typeof dateValue === 'number') {
+        date = new Date(dateValue);
+      }
+      // Handle Firebase timestamp objects
+      else if (typeof dateValue === 'object' && dateValue.seconds) {
+        date = new Date(dateValue.seconds * 1000);
+      }
+      else {
+        date = new Date(dateValue);
+      }
+      
+      return isNaN(date.getTime()) ? null : date;
+    } catch (error) {
+      console.error('Error parsing delivery date:', error);
+      return null;
+    }
+  }, []);
+
+  const getRelativeTime = useCallback((date) => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    return `${Math.floor(diffInSeconds / 86400)} days ago`;
+  }, []);
+
+  const generateNotifications = useCallback((ordersArray) => {
+    const now = new Date();
+    const newNotifications = [];
+    const storedNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
+    
+    // Check for overdue orders
+    ordersArray.forEach(order => {
+      if (order.deliveryDate && order.status !== 'Delivered' && order.status !== 'Cancelled') {
+        const deliveryDate = parseDeliveryDate(order.deliveryDate);
+        if (deliveryDate && deliveryDate < now) {
+          const notificationId = `overdue-${order.id}`;
+          if (!storedNotifications.includes(notificationId)) {
+            newNotifications.push({
+              id: notificationId,
+              type: 'alert',
+              title: '🚨 Overdue Order',
+              message: `Order #${order.billNumber} for ${order.customerName} is overdue`,
+              time: getRelativeTime(new Date()),
+              read: false,
+              icon: '⚠️',
+              orderId: order.id,
+              timestamp: Date.now(),
+              category: 'overdue'
+            });
+          }
+        }
+      }
+
+      // New orders (created in last 24 hours)
+      if (order.createdAt) {
+        const orderDate = new Date(order.createdAt);
+        const hoursDiff = (now - orderDate) / (1000 * 60 * 60);
+        if (hoursDiff < 24) {
+          const notificationId = `new-${order.id}`;
+          if (!storedNotifications.includes(notificationId)) {
+            newNotifications.push({
+              id: notificationId,
+              type: 'order',
+              title: '🛍️ New Order Received',
+              message: `New order #${order.billNumber} from ${order.customerName}`,
+              time: `${Math.floor(hoursDiff)} hours ago`,
+              read: false,
+              icon: '🛍️',
+              orderId: order.id,
+              timestamp: order.createdAt,
+              category: 'new'
+            });
+          }
+        }
+      }
+
+      // High pending amount alerts
+      if (order.pendingAmount && parseFloat(order.pendingAmount) > 5000) {
+        const notificationId = `payment-${order.id}`;
+        if (!storedNotifications.includes(notificationId)) {
+          newNotifications.push({
+            id: notificationId,
+            type: 'payment',
+            title: '💰 High Pending Amount',
+            message: `Order #${order.billNumber} has ₹${parseFloat(order.pendingAmount).toLocaleString('en-IN')} pending`,
+            time: getRelativeTime(new Date()),
+            read: false,
+            icon: '💰',
+            orderId: order.id,
+            timestamp: Date.now(),
+            category: 'payment'
+          });
+        }
+      }
+    });
+
+    // Sort notifications by priority and timestamp
+    newNotifications.sort((a, b) => {
+      const priorityA = notificationCategories[a.category]?.priority || 5;
+      const priorityB = notificationCategories[b.category]?.priority || 5;
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      return b.timestamp - a.timestamp;
+    });
+    
+    setNotifications(newNotifications);
+    setUnreadCount(newNotifications.length);
+
+    // Play sound for new notifications
+    if (newNotifications.length > 0) {
+      playNotificationSound();
+    }
+  }, [parseDeliveryDate, getRelativeTime]);
+
+  const playNotificationSound = () => {
+    try {
+      // Create a simple notification sound using Web Audio API
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (error) {
+      console.log('Audio context not supported');
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+  };
+
+  const showBrowserNotification = (title, body) => {
+    if (Notification.permission === 'granted') {
+      new Notification(title, {
+        body,
+        icon: '/logo192.png',
+        tag: 'order-notification'
+      });
+    }
+  };
+
   // Load orders and generate notifications
   useEffect(() => {
     const timer = setInterval(() => {
@@ -32,119 +222,6 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
 
     const ordersRef = ref(db, 'Orders');
     
-    // Move generateNotifications inside useEffect to fix dependency
-    const generateNotifications = (ordersArray) => {
-      const now = new Date();
-      const newNotifications = [];
-      const storedNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
-      
-      // Check for overdue orders
-      ordersArray.forEach(order => {
-        if (order.deliveryDate && order.status !== 'Delivered' && order.status !== 'Cancelled') {
-          const deliveryDate = parseDeliveryDate(order.deliveryDate);
-          if (deliveryDate && deliveryDate < now) {
-            const notificationId = `overdue-${order.id}`;
-            if (!storedNotifications.includes(notificationId)) {
-              newNotifications.push({
-                id: notificationId,
-                type: 'alert',
-                title: '🚨 Overdue Order',
-                message: `Order #${order.billNumber} for ${order.customerName} is overdue`,
-                time: getRelativeTime(new Date()),
-                read: false,
-                icon: '⚠️',
-                orderId: order.id,
-                timestamp: Date.now()
-              });
-            }
-          }
-        }
-
-        // New orders (created in last 24 hours)
-        if (order.createdAt) {
-          const orderDate = new Date(order.createdAt);
-          const hoursDiff = (now - orderDate) / (1000 * 60 * 60);
-          if (hoursDiff < 24) {
-            const notificationId = `new-${order.id}`;
-            if (!storedNotifications.includes(notificationId)) {
-              newNotifications.push({
-                id: notificationId,
-                type: 'order',
-                title: '🛍️ New Order Received',
-                message: `New order #${order.billNumber} from ${order.customerName}`,
-                time: `${Math.floor(hoursDiff)} hours ago`,
-                read: false,
-                icon: '🛍️',
-                orderId: order.id,
-                timestamp: order.createdAt
-              });
-            }
-          }
-        }
-      });
-
-      // Sort notifications by timestamp (newest first)
-      newNotifications.sort((a, b) => b.timestamp - a.timestamp);
-      
-      setNotifications(newNotifications);
-      setUnreadCount(newNotifications.length);
-    };
-
-    const parseDeliveryDate = (dateValue) => {
-      if (!dateValue) return null;
-      
-      try {
-        let date;
-        
-        // Handle DD-MM-YYYY format
-        if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
-          const parts = dateValue.split('-');
-          const day = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10) - 1;
-          const year = parseInt(parts[2], 10);
-          date = new Date(year, month, day);
-        } 
-        // Handle DD/MM/YYYY format
-        else if (typeof dateValue === 'string' && dateValue.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-          const parts = dateValue.split('/');
-          const day = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10) - 1;
-          const year = parseInt(parts[2], 10);
-          date = new Date(year, month, day);
-        }
-        // Handle YYYY-MM-DD format
-        else if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
-          date = new Date(dateValue);
-        }
-        // Handle timestamps
-        else if (typeof dateValue === 'number') {
-          date = new Date(dateValue);
-        }
-        // Handle Firebase timestamp objects
-        else if (typeof dateValue === 'object' && dateValue.seconds) {
-          date = new Date(dateValue.seconds * 1000);
-        }
-        else {
-          date = new Date(dateValue);
-        }
-        
-        return isNaN(date.getTime()) ? null : date;
-      } catch (error) {
-        console.error('Error parsing delivery date:', error);
-        return null;
-      }
-    };
-
-    const getRelativeTime = (date) => {
-      const now = new Date();
-      const diffInSeconds = Math.floor((now - date) / 1000);
-      
-      if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-      if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-      return `${Math.floor(diffInSeconds / 86400)} days ago`;
-    };
-
     onValue(ordersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -164,7 +241,35 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
       }
     });
 
+    // Request notification permission on component mount
+    requestNotificationPermission();
+
     return () => clearInterval(timer);
+  }, [generateNotifications]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      // Ctrl/Cmd + K for search focus
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        document.querySelector('.search-bar input')?.focus();
+      }
+      
+      // Ctrl/Cmd + N for notifications
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        setShowNotifications(prev => !prev);
+      }
+      
+      // ESC to close modals
+      if (e.key === 'Escape') {
+        setShowNotifications(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
   }, []);
 
   const getInitials = (name) => {
@@ -225,15 +330,8 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
     markAsRead(notification.id);
     setShowNotifications(false);
     
-    if (notification.orderId) {
-      // Check if onNavigate function exists before calling it
-      if (onNavigate && typeof onNavigate === 'function') {
-        onNavigate('orders', { highlightOrder: notification.orderId });
-      } else {
-        console.warn('onNavigate function not available');
-        // Fallback: You can add alternative navigation here if needed
-        // For example, using window.location or other routing method
-      }
+    if (notification.orderId && onNavigate) {
+      onNavigate('orders', { highlightOrder: notification.orderId });
     }
   };
 
@@ -275,6 +373,7 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
           <button 
             className="notification-btn"
             onClick={handleNotificationClick}
+            title="Notifications (Ctrl+N)"
           >
             <span className="notification-icon">🔔</span>
             {unreadCount > 0 && (
@@ -302,8 +401,9 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
                   notifications.slice(0, 8).map(notification => (
                     <div 
                       key={notification.id}
-                      className="notification-item unread"
+                      className={`notification-item unread notification-${notification.category}`}
                       onClick={() => handleNotificationAction(notification)}
+                      style={{ borderLeftColor: notificationCategories[notification.category]?.color }}
                     >
                       <div className="notification-icon">
                         {notification.icon}
@@ -313,7 +413,10 @@ function Header({ user, currentView, onToggleSidebar, todayOrdersCount, todayRev
                         <div className="notification-message">{notification.message}</div>
                         <div className="notification-time">{notification.time}</div>
                       </div>
-                      <div className="unread-dot"></div>
+                      <div 
+                        className="unread-dot" 
+                        style={{ background: notificationCategories[notification.category]?.color }}
+                      ></div>
                     </div>
                   ))
                 ) : (

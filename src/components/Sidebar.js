@@ -1,4 +1,4 @@
-// Sidebar.js (Premium Theme with Real Counts)
+// Sidebar.js (FIXED WITH PROPER THEME AND BADGES)
 import React, { useState, useEffect } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { auth, db } from '../firebase';
@@ -7,6 +7,7 @@ import './Sidebar.css';
 function Sidebar({ currentView, onNavigate, isOpen, onToggle, user }) {
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [currentTime, setCurrentTime] = useState('');
 
   const userName = user?.displayName || user?.email || 'Admin User';
   const userRole = user?.role || 'Administrator';
@@ -20,11 +21,26 @@ function Sidebar({ currentView, onNavigate, isOpen, onToggle, user }) {
     { id: 'settings', icon: '⚙️', label: 'Settings', badge: null },
   ];
 
+  // Update time every second
+  useEffect(() => {
+    const updateTime = () => {
+      setCurrentTime(new Date().toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }));
+    };
+    
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Load real counts for badges
   useEffect(() => {
     // Load orders for pending count
     const ordersRef = ref(db, 'Orders');
-    onValue(ordersRef, (snapshot) => {
+    const unsubscribeOrders = onValue(ordersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const ordersArray = Object.values(data);
@@ -32,35 +48,36 @@ function Sidebar({ currentView, onNavigate, isOpen, onToggle, user }) {
           order.status === 'Pending' || order.status === 'Confirmed'
         ).length;
         setPendingOrdersCount(pendingOrders);
+      } else {
+        setPendingOrdersCount(0);
       }
     });
 
     // Load stock for low stock count
     const stockRef = ref(db, 'Stock');
-    onValue(stockRef, (snapshot) => {
+    const unsubscribeStock = onValue(stockRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const stockArray = Object.values(data);
         const lowStock = stockArray.filter(item => 
-          (item.amount || 0) < 5000
+          (parseFloat(item.amount) || 0) < 5000
         ).length;
         setLowStockCount(lowStock);
+      } else {
+        setLowStockCount(0);
       }
     });
+
+    return () => {
+      unsubscribeOrders();
+      unsubscribeStock();
+    };
   }, []);
 
   const handleLogout = () => {
     if (window.confirm('Do you want to log out?')) {
       auth.signOut();
     }
-  };
-
-  const getCurrentTime = () => {
-    return new Date().toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
   };
 
   return (
@@ -73,12 +90,12 @@ function Sidebar({ currentView, onNavigate, isOpen, onToggle, user }) {
             </div>
             <div className="store-details">
               <h2>Lehenga Store</h2>
-              <p>Management System</p>
+              <p>Premium Boutique</p>
             </div>
           </div>
           <div className="current-time">
             <span className="time-icon">🕒</span>
-            <span className="time-text">{getCurrentTime()}</span>
+            <span className="time-text">{currentTime}</span>
           </div>
         </div>
         

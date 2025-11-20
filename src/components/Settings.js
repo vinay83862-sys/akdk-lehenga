@@ -18,6 +18,37 @@ function Settings() {
   const [newSalesman, setNewSalesman] = useState({ name: '', phone: '' });
   const [activeTab, setActiveTab] = useState('general');
 
+  // Apply theme settings
+  const applyThemeSettings = (config) => {
+    const root = document.documentElement;
+    
+    // Apply theme mode
+    if (config.theme === 'light') {
+      root.style.setProperty('--background', '#f8fafc');
+      root.style.setProperty('--surface', '#ffffff');
+      root.style.setProperty('--surface-light', '#f1f5f9');
+      root.style.setProperty('--text-primary', '#1e293b');
+      root.style.setProperty('--text-secondary', '#64748b');
+      root.style.setProperty('--border', '#e2e8f0');
+      root.style.setProperty('--shadow', 'rgba(0, 0, 0, 0.1)');
+    } else {
+      // Dark theme (default)
+      root.style.setProperty('--background', '#0f172a');
+      root.style.setProperty('--surface', '#1e293b');
+      root.style.setProperty('--surface-light', '#334155');
+      root.style.setProperty('--text-primary', '#f8fafc');
+      root.style.setProperty('--text-secondary', '#cbd5e1');
+      root.style.setProperty('--border', '#475569');
+      root.style.setProperty('--shadow', 'rgba(0, 0, 0, 0.3)');
+    }
+    
+    // Apply primary color
+    if (config.primaryColor) {
+      root.style.setProperty('--primary', config.primaryColor);
+      root.style.setProperty('--gradient', `linear-gradient(135deg, ${config.primaryColor} 0%, #764ba2 100%)`);
+    }
+  };
+
   useEffect(() => {
     // Load salesmen
     const salesmenRef = ref(db, 'salesmen');
@@ -37,39 +68,24 @@ function Settings() {
     onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        setStoreConfig(prev => ({ ...prev, ...data }));
-        // Apply theme immediately when settings are loaded
-        applyThemeSettings(data);
+        const updatedConfig = { ...storeConfig, ...data };
+        setStoreConfig(updatedConfig);
+        applyThemeSettings(updatedConfig);
       }
     });
   }, []);
-
-  const applyThemeSettings = (config) => {
-    // Apply theme
-    if (config.theme) {
-      document.documentElement.setAttribute('data-theme', config.theme);
-    }
-    
-    // Apply primary color
-    if (config.primaryColor) {
-      document.documentElement.style.setProperty('--theme-primary', config.primaryColor);
-    }
-  };
 
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
     const newValue = type === 'checkbox' ? checked : value;
     
-    setStoreConfig(prev => ({
-      ...prev,
+    const updatedConfig = {
+      ...storeConfig,
       [name]: newValue
-    }));
-
-    // Apply changes immediately for theme settings
-    if (name === 'theme' || name === 'primaryColor') {
-      const updatedConfig = { ...storeConfig, [name]: newValue };
-      applyThemeSettings(updatedConfig);
-    }
+    };
+    
+    setStoreConfig(updatedConfig);
+    applyThemeSettings(updatedConfig);
   };
 
   const saveSettings = async (e) => {
@@ -161,7 +177,7 @@ function Settings() {
       </div>
 
       <div className="tabs" style={{ marginBottom: '2rem', display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-        {['general', 'appearance', 'users', 'salesmen', 'backup'].map(tab => (
+        {['general', 'appearance', 'salesmen', 'backup'].map(tab => (
           <button
             key={tab}
             className={`btn ${activeTab === tab ? 'btn-primary' : 'btn-outline-secondary'}`}
@@ -292,7 +308,7 @@ function Settings() {
                   <option value="light">Light Theme</option>
                 </select>
                 <small style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', display: 'block' }}>
-                  Note: Dashboard maintains its original look regardless of theme
+                  Change the visual appearance of the application
                 </small>
               </div>
 
@@ -337,9 +353,9 @@ function Settings() {
             </div>
 
             <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'var(--surface-light)', borderRadius: '1rem' }}>
-              <h4>Preview</h4>
+              <h4>Theme Preview</h4>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ padding: '1rem', background: 'var(--theme-surface)', borderRadius: '0.5rem', border: '1px solid var(--theme-border)' }}>
+                <div style={{ padding: '1rem', background: 'var(--surface)', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
                   Card Preview
                 </div>
                 <button className="btn btn-primary">Primary Button</button>

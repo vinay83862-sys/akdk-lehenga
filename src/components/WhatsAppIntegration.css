@@ -1,0 +1,277 @@
+/* WhatsAppIntegration.css */
+.whatsapp-modal {
+    max-width: 600px !important;
+  }
+  
+  .whatsapp-recipient {
+    background: var(--ot-surface-light);
+    padding: var(--space-16);
+    border-radius: var(--radius-base);
+    margin-bottom: var(--space-16);
+    border-left: 4px solid #25D366;
+    color: var(--ot-text-primary);
+    font-family: var(--font-family-base);
+  }
+  
+  .attachment-options {
+    margin-bottom: var(--space-16);
+  }
+  
+  .attachment-options h4 {
+    margin-bottom: var(--space-12);
+    color: var(--ot-text-primary);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-family-base);
+  }
+  
+  .attachment-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--space-8);
+    margin-bottom: var(--space-16);
+  }
+  
+  .attachment-btn {
+    background: var(--ot-surface);
+    border: 1px solid var(--ot-border);
+    padding: var(--space-12);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-standard);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family-base);
+    color: var(--ot-text-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+  }
+  
+  .attachment-btn:hover,
+  .attachment-btn.active {
+    background: var(--ot-primary);
+    color: white;
+    border-color: var(--ot-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+  
+  .attachment-icon {
+    font-size: var(--font-size-xl);
+  }
+  
+  .attachment-text {
+    font-weight: var(--font-weight-medium);
+  }
+  
+  .attachment-desc {
+    font-size: var(--font-size-xs);
+    opacity: 0.8;
+  }
+  
+  .smart-instructions {
+    margin-top: var(--space-12);
+  }
+  
+  .instructions-box {
+    background: rgba(59, 130, 246, 0.1);
+    padding: var(--space-12);
+    border-radius: var(--radius-base);
+    border: 1px solid #3b82f6;
+  }
+  
+  .instructions-box h5 {
+    margin: 0 0 var(--space-8) 0;
+    color: #3b82f6;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-family-base);
+  }
+  
+  .instructions-box ol {
+    margin: 0;
+    padding-left: var(--space-20);
+    font-size: var(--font-size-xs);
+    color: var(--ot-text-secondary);
+    font-family: var(--font-family-base);
+  }
+  
+  .instructions-box li {
+    margin-bottom: var(--space-4);
+  }
+  
+  .message-templates {
+    margin-bottom: var(--space-16);
+  }
+  
+  .message-templates h4 {
+    margin-bottom: var(--space-12);
+    color: var(--ot-text-primary);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-family-base);
+  }
+  
+  .template-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-8);
+    margin-bottom: var(--space-16);
+  }
+  
+  .template-btn {
+    background: var(--ot-surface);
+    border: 1px solid var(--ot-border);
+    padding: var(--space-12);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-standard);
+    text-align: left;
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family-base);
+    color: var(--ot-text-primary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+  }
+  
+  .template-btn:hover {
+    background: var(--ot-surface-light);
+    border-color: var(--ot-primary);
+    transform: translateY(-2px);
+  }
+  
+  .template-icon {
+    font-size: var(--font-size-lg);
+  }
+  
+  .template-text {
+    flex: 1;
+  }
+  
+  .message-editor label {
+    display: block;
+    margin-bottom: var(--space-8);
+    font-weight: var(--font-weight-medium);
+    color: var(--ot-text-primary);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family-base);
+  }
+  
+  .message-textarea {
+    width: 100%;
+    padding: var(--space-16);
+    border: 1px solid var(--ot-border);
+    border-radius: var(--radius-base);
+    background: var(--ot-surface);
+    color: var(--ot-text-primary);
+    font-size: var(--font-size-sm);
+    resize: vertical;
+    min-height: 120px;
+    transition: all var(--duration-normal) var(--ease-standard);
+    font-family: var(--font-family-base);
+    line-height: var(--line-height-relaxed);
+  }
+  
+  .message-textarea:focus {
+    outline: none;
+    border-color: #25D366;
+    box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.1);
+  }
+  
+  .character-count {
+    font-size: var(--font-size-xs);
+    color: var(--ot-text-secondary);
+    margin-top: var(--space-4);
+    text-align: right;
+    font-family: var(--font-family-base);
+  }
+  
+  .btn-whatsapp-send {
+    background: #25D366;
+    color: white;
+    border: none;
+    padding: var(--space-12) var(--space-24);
+    border-radius: var(--radius-base);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-base);
+    transition: all var(--duration-normal) var(--ease-standard);
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    min-width: 200px;
+    justify-content: center;
+  }
+  
+  .btn-whatsapp-send:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+  
+  .btn-whatsapp-send:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+  
+  .btn-whatsapp-send.loading {
+    background: var(--ot-text-secondary) !important;
+  }
+  
+  .loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .whatsapp-modal {
+      width: 95% !important;
+      margin: var(--space-16);
+    }
+    
+    .attachment-buttons {
+      grid-template-columns: 1fr;
+    }
+    
+    .template-buttons {
+      grid-template-columns: 1fr;
+    }
+    
+    .btn-whatsapp-send {
+      min-width: auto;
+      width: 100%;
+    }
+    
+    .modal-footer {
+      flex-direction: column;
+      gap: var(--space-12);
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .attachment-btn {
+      padding: var(--space-8);
+    }
+    
+    .template-btn {
+      padding: var(--space-8);
+    }
+    
+    .message-textarea {
+      padding: var(--space-12);
+    }
+  }

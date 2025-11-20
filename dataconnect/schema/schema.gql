@@ -1,0 +1,54 @@
+type Customer @table {
+  firstName: String!
+  lastName: String!
+  email: String!
+  phoneNumber: String
+  address: String
+}
+
+type Lehenga @table {
+  name: String!
+  styleCode: String!
+  price: Float!
+  createdAt: Timestamp!
+  description: String
+  imageUrl: String
+  material: String
+  colorOptions: [String]
+}
+
+type Order @table {
+  customer: Customer!
+  orderNumber: String!
+  orderDate: Timestamp!
+  currentStatus: String!
+  expectedDeliveryDate: Date!
+  shippingAddress: String
+  billingAddress: String
+  totalAmount: Float
+  trackingNumber: String
+}
+
+type OrderItem @table {
+  order: Order!
+  lehenga: Lehenga!
+  quantity: Int!
+  unitPrice: Float!
+  size: String
+  customMeasurements: String
+  customizationNotes: String
+}
+
+type OrderStatusHistory @table {
+  order: Order!
+  status: String!
+  timestamp: Timestamp!
+  notes: String
+}
+
+type QRCode @table {
+  order: Order!
+  qrCodeString: String!
+  createdAt: Timestamp!
+  expirationDate: Timestamp
+}
