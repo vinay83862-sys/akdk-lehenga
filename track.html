@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AKDK Jain - Order Tracking</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase Config -->
+    <script src="config.js"></script>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-shapes">
+        <div class="shape"></div>
+        <div class="shape"></div>
+        <div class="shape"></div>
+    </div>
+
+    <div class="container">
+        <!-- Header Card -->
+        <div class="header-card">
+            <div class="logo-icon">
+                🛍️
+            </div>
+            <h1>AKDK JAIN</h1>
+            <p>Order Tracking</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="main-card">
+            <!-- Step 1: Bill Number -->
+            <div class="step active" id="step1">
+                <div class="step-header">
+                    <div class="step-icon">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                    <h3>Enter Bill Number</h3>
+                </div>
+                <p class="step-description">
+                    Enter your bill number to start tracking your order
+                </p>
+                <div class="input-group">
+                    <label class="input-label">Bill Number</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-hashtag input-icon"></i>
+                        <input type="text" id="billNumberInput" placeholder="Example: 4321">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="verifyBillNumber()">
+                    <span>Continue</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+
+            <!-- Step 2: Phone Verification -->
+            <div class="step" id="step2">
+                <div class="step-header">
+                    <div class="step-icon">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <h3>Phone Verification</h3>
+                </div>
+                <p class="step-description">
+                    For security, please enter the phone number associated with bill number <strong id="currentBillNumber"></strong>
+                </p>
+                <div class="input-group">
+                    <label class="input-label">Phone Number</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-phone input-icon"></i>
+                        <input type="tel" id="phoneNumberInput" placeholder="Example: 9876543210">
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="goBack()">
+                        <i class="fas fa-arrow-left"></i>
+                        <span>Go Back</span>
+                    </button>
+                    <button class="btn btn-primary" onclick="verifyPhoneNumber()">
+                        <span>Verify</span>
+                        <i class="fas fa-check"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: Order Details -->
+            <div class="step" id="step3">
+                <div id="orderResult"></div>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="shareTrackingLink()">
+                        <i class="fas fa-share-alt"></i>
+                        <span>Share Link</span>
+                    </button>
+                    <button class="btn btn-primary" onclick="trackNewOrder()">
+                        <i class="fas fa-redo"></i>
+                        <span>Track New Order</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Card -->
+        <div class="contact-card">
+            <div class="contact-header">
+                <div class="contact-icon">
+                    <i class="fas fa-headset"></i>
+                </div>
+                <span>Need Help?</span>
+            </div>
+            <div class="contact-item">
+                <i class="fas fa-phone"></i>
+                <span>+91 8700208934</span>
+            </div>
+            <div class="contact-item">
+                <i class="fas fa-phone"></i>
+                <span>+91 9870589648</span>
+            </div>
+            <div class="contact-item">
+                <i class="fas fa-envelope"></i>
+                <span>akdkjain@gmail.com</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let db;
+        try {
+            // Use config from external file
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
+        }
+
+        let currentBillNumber = '';
+
+        // Show specific step
+        function showStep(n) {
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            document.getElementById('step' + n).classList.add('active');
+        }
+
+        // Go back to step 1
+        function goBack() {
+            showStep(1);
+        }
+
+        // Reset and track new order
+        function trackNewOrder() {
+            currentBillNumber = '';
+            document.getElementById('billNumberInput').value = '';
+            document.getElementById('phoneNumberInput').value = '';
+            document.getElementById('orderResult').innerHTML = '';
+            showStep(1);
+        }
+
+        // Validation functions
+        function validateBillNumber(bill) {
+            return /^\d+$/.test(bill) && bill.length >= 2;
+        }
+
+        function validatePhoneNumber(phone) {
+            const cleaned = phone.replace(/\D/g, '');
+            return cleaned.length === 10 && /^[6-9]/.test(cleaned);
+        }
+
+        // Show temporary alert
+        function showTempAlert(message, type = 'error') {
+            // Remove existing alerts
+            const existingAlert = document.querySelector('.temp-alert');
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `temp-alert temp-alert-${type}`;
+            alertDiv.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check' : 'exclamation-triangle'}"></i>
+                ${message}
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 3000);
+        }
+
+        // Verify bill number
+        function verifyBillNumber() {
+            const billNumber = document.getElementById('billNumberInput').value.trim();
+            
+            if (!billNumber) {
+                showTempAlert('Please enter bill number');
+                return;
+            }
+            
+            if (!validateBillNumber(billNumber)) {
+                showTempAlert('Please enter a valid bill number');
+                return;
+            }
+            
+            currentBillNumber = billNumber;
+            document.getElementById('currentBillNumber').textContent = billNumber;
+            showStep(2);
+        }
+
+        // Verify phone number and fetch order
+        function verifyPhoneNumber() {
+            const phoneNumber = document.getElementById('phoneNumberInput').value.trim();
+            
+            if (!phoneNumber) {
+                showTempAlert('Please enter phone number');
+                return;
+            }
+            
+            if (!validatePhoneNumber(phoneNumber)) {
+                showTempAlert('Please enter a valid Indian mobile number');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('orderResult').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p class="loading-text">Loading Order Details...</p>
+                </div>
+            `;
+            
+            showStep(3);
+            findAndVerifyOrder(currentBillNumber, phoneNumber);
+        }
+
+        // Share tracking link
+        function shareTrackingLink() {
+            const trackingUrl = `${window.location.origin}${window.location.pathname}?order=${currentBillNumber}`;
+            
+            // Check if Web Share API is available
+            if (navigator.share) {
+                navigator.share({
+                    title: 'AKDK JAIN Order Tracking',
+                    text: `Track your order with bill number ${currentBillNumber}`,
+                    url: trackingUrl
+                })
+                .then(() => console.log('Shared successfully'))
+                .catch((error) => {
+                    // Fallback to clipboard
+                    copyToClipboard(trackingUrl);
+                });
+            } else {
+                // Fallback to clipboard
+                copyToClipboard(trackingUrl);
+            }
+        }
+
+        // Copy to clipboard
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showTempAlert('Tracking link copied to clipboard!', 'success');
+            }).catch(() => {
+                showTempAlert('Failed to copy link', 'error');
+            });
+        }
+
+        // Find and verify order from Firebase
+        function findAndVerifyOrder(billNumber, phoneNumber) {
+            if (!db) {
+                showError('Failed to connect to database. Please try again later.');
+                return;
+            }
+
+            const ordersRef = db.ref('Orders');
+            
+            ordersRef.once('value')
+                .then((snapshot) => {
+                    const orders = snapshot.val();
+                    let foundOrder = null;
+
+                    if (orders) {
+                        Object.keys(orders).forEach(key => {
+                            const order = orders[key];
+                            if (order.billNumber === billNumber) {
+                                const orderPhone = String(order.phoneNumber).replace(/\D/g, '');
+                                const inputPhone = String(phoneNumber).replace(/\D/g, '');
+                                
+                                if (orderPhone === inputPhone) {
+                                    foundOrder = order;
+                                }
+                            }
+                        });
+                    }
+
+                    if (foundOrder) {
+                        displayOrderDetails(foundOrder, billNumber);
+                    } else {
+                        showError('Order not found or phone number mismatch!<br>Please check your details and try again.');
+                    }
+                })
+                .catch((error) => {
+                    console.error('Database error:', error);
+                    showError('Failed to load data from database. Please try again later.');
+                });
+        }
+
+        // Display order details
+        function displayOrderDetails(orderData, billNumber) {
+            const stitchedLehengas = orderData.lehengaDetails ? 
+                orderData.lehengaDetails.filter(l =>
+                    l.stitchingOption === 'Stitched' || l.length || l.waist || l.hip) : [];
+
+            // Status mapping
+            const statusMap = {
+                'Pending': { text: 'Order Placed', icon: 'fa-clock', class: 'status-warning' },
+                'Confirmed': { text: 'Confirmed', icon: 'fa-check-circle', class: 'status-success' },
+                'On Stitching': { text: 'In Stitching', icon: 'fa-cut', class: 'status-primary' },
+                'Stitched': { text: 'Stitched', icon: 'fa-check-double', class: 'status-success' },
+                'Ready': { text: 'Ready for Pickup', icon: 'fa-box', class: 'status-success' },
+                'Delivered': { text: 'Picked Up', icon: 'fa-truck', class: 'status-success' },
+                'Cancelled': { text: 'Cancelled', icon: 'fa-times-circle', class: 'status-cancelled' }
+            };
+
+            const status = statusMap[orderData.status] || { 
+                text: orderData.status, 
+                icon: 'fa-info-circle', 
+                class: 'status-primary' 
+            };
+
+            const pendingAmount = orderData.pendingAmount ? parseFloat(orderData.pendingAmount) : 0;
+            const totalAmount = orderData.totalAmount ? parseFloat(orderData.totalAmount) : 0;
+            const paidAmount = orderData.paidAmount ? parseFloat(orderData.paidAmount) : 0;
+
+            // Format dates
+            const orderDate = formatDate(orderData.createdAt);
+            const deliveryDate = formatReadableDate(orderData.deliveryDate);
+
+            // Build lehenga HTML
+            let lehengaHTML = '';
+            if (stitchedLehengas.length > 0) {
+                lehengaHTML = `
+                    <div class="lehenga-section">
+                        <div class="lehenga-header">
+                            <i class="fas fa-tshirt"></i>
+                            <span>Lehengas (Stitched): ${stitchedLehengas.length}</span>
+                        </div>
+                        ${stitchedLehengas.map((lehenga, idx) => `
+                            <div class="lehenga-item">
+                                <div class="lehenga-title">Lehenga ${idx + 1}</div>
+                                <div class="lehenga-detail"><i class="fas fa-palette"></i> Design: ${lehenga.design || '-'}</div>
+                                <div class="lehenga-detail"><i class="fas fa-fill-drip"></i> Color: ${lehenga.color || '-'}</div>
+                                <div class="lehenga-detail"><i class="fas fa-rupee-sign"></i> Amount: ₹${lehenga.amount ? parseFloat(lehenga.amount).toLocaleString('en-IN') : '0'}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Build payment summary HTML
+            const paymentHTML = `
+                <div class="payment-summary ${pendingAmount > 0 ? 'payment-pending' : ''}">
+                    <div class="payment-row">
+                        <span class="payment-label"><i class="fas fa-receipt"></i> Total Amount:</span>
+                        <span class="payment-value">₹${totalAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span class="payment-label"><i class="fas fa-check"></i> Paid Amount:</span>
+                        <span class="payment-value">₹${paidAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="payment-row" style="font-size: 17px;">
+                        <span class="payment-label">
+                            <i class="fas ${pendingAmount > 0 ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
+                            ${pendingAmount > 0 ? 'Pending Amount:' : 'Status:'}
+                        </span>
+                        <span class="payment-value">
+                            ${pendingAmount > 0 ? '₹' + pendingAmount.toLocaleString('en-IN') : 'Fully Paid ✓'}
+                        </span>
+                    </div>
+                </div>
+            `;
+
+            // Build notes HTML
+            const notesHTML = orderData.notes ? `
+                <div class="notes-box">
+                    <div class="notes-header">
+                        <i class="fas fa-sticky-note"></i>
+                        <span>Special Notes</span>
+                    </div>
+                    <div class="notes-content">${orderData.notes}</div>
+                </div>
+            ` : '';
+
+            // Complete order HTML
+            const orderHTML = `
+                <div class="order-card">
+                    <div class="status-header">
+                        <div class="status-badge ${status.class}">
+                            <i class="fas ${status.icon}"></i>
+                            <span>${status.text}</span>
+                        </div>
+                        <div class="bill-number">
+                            <strong>Bill:</strong> ${billNumber}
+                        </div>
+                    </div>
+                    
+                    <div class="divider"></div>
+                    
+                    <div class="info-row">
+                        <div class="info-icon">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="info-content">
+                            <div class="info-label">Customer Name</div>
+                            <div class="info-value">${orderData.customerName || '-'}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-row">
+                        <div class="info-icon">
+                            <i class="fas fa-phone"></i>
+                        </div>
+                        <div class="info-content">
+                            <div class="info-label">Phone Number</div>
+                            <div class="info-value">${formatPhoneNumber(orderData.phoneNumber)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-row">
+                        <div class="info-icon">
+                            <i class="fas fa-calendar"></i>
+                        </div>
+                        <div class="info-content">
+                            <div class="info-label">Order Date</div>
+                            <div class="info-value">${orderDate}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-row">
+                        <div class="info-icon">
+                            <i class="fas fa-truck"></i>
+                        </div>
+                        <div class="info-content">
+                            <div class="info-label">Expected Pickup Date</div>
+                            <div class="info-value">${deliveryDate}</div>
+                        </div>
+                    </div>
+                    
+                    ${paymentHTML}
+                    ${lehengaHTML}
+                    ${notesHTML}
+                </div>
+            `;
+
+            document.getElementById('orderResult').innerHTML = orderHTML;
+        }
+
+        // Show error message
+        function showError(msg) {
+            document.getElementById('orderResult').innerHTML = `
+                <div class="order-card error-card">
+                    <div class="error-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="error-title">Error</div>
+                    <div class="error-message">${msg}</div>
+                </div>
+            `;
+        }
+
+        // Format timestamp to date
+        function formatDate(ts) {
+            if (!ts) return '-';
+            const date = new Date(Number(ts));
+            if (isNaN(date.getTime())) return '-';
+            
+            const dd = String(date.getDate()).padStart(2, '0');
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const yyyy = date.getFullYear();
+            
+            return `${dd}/${mm}/${yyyy}`;
+        }
+
+        // Format readable date
+        function formatReadableDate(input) {
+            if (!input) return '-';
+            if (input.toString().match(/^\d+$/)) {
+                return formatDate(input);
+            }
+            return input;
+        }
+
+        // Format phone number
+        function formatPhoneNumber(phone) {
+            if (!phone) return '-';
+            let p = String(phone).replace(/[^0-9+]/g, '');
+            
+            if (p.length === 10 && !p.startsWith('+')) {
+                p = '+91 ' + p;
+            }
+            
+            return p;
+        }
+
+        // Pre-populate bill number from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const billFromUrl = urlParams.get('order');
+        
+        if (billFromUrl) {
+            document.getElementById('billNumberInput').value = billFromUrl;
+        }
+
+        // Add enter key support
+        document.getElementById('billNumberInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                verifyBillNumber();
+            }
+        });
+
+        document.getElementById('phoneNumberInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                verifyPhoneNumber();
+            }
+        });
+    </script>
+</body>
+</html>

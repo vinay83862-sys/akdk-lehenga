@@ -1,0 +1,21 @@
+{
+  "files": {
+    "main.css": "/akdk-lehenga/static/css/main.8e362724.css",
+    "main.js": "/akdk-lehenga/static/js/main.a2aab859.js",
+    "static/js/239.14d9c6e1.chunk.js": "/akdk-lehenga/static/js/239.14d9c6e1.chunk.js",
+    "static/js/977.dff87726.chunk.js": "/akdk-lehenga/static/js/977.dff87726.chunk.js",
+    "static/js/455.bbb4816a.chunk.js": "/akdk-lehenga/static/js/455.bbb4816a.chunk.js",
+    "static/js/453.509bc24d.chunk.js": "/akdk-lehenga/static/js/453.509bc24d.chunk.js",
+    "index.html": "/akdk-lehenga/index.html",
+    "main.8e362724.css.map": "/akdk-lehenga/static/css/main.8e362724.css.map",
+    "main.a2aab859.js.map": "/akdk-lehenga/static/js/main.a2aab859.js.map",
+    "239.14d9c6e1.chunk.js.map": "/akdk-lehenga/static/js/239.14d9c6e1.chunk.js.map",
+    "977.dff87726.chunk.js.map": "/akdk-lehenga/static/js/977.dff87726.chunk.js.map",
+    "455.bbb4816a.chunk.js.map": "/akdk-lehenga/static/js/455.bbb4816a.chunk.js.map",
+    "453.509bc24d.chunk.js.map": "/akdk-lehenga/static/js/453.509bc24d.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.8e362724.css",
+    "static/js/main.a2aab859.js"
+  ]
+}
