@@ -4,7 +4,104 @@ import { db } from '../firebase';
 import PropTypes from 'prop-types';
 import './PrintOrder.css';
 
-// Helper functions outside component for better performance
+// Enhanced QR Code Generator with High Quality
+const generateHighQualityQR = async (data, size = 400) => {
+  try {
+    // Dynamic import for QRCode library
+    const QRCode = (await import('qrcode')).default;
+    
+    const qrOptions = {
+      errorCorrectionLevel: 'H', // Highest error correction (30%)
+      type: 'image/png',
+      quality: 1.0,
+      margin: 2,
+      width: size,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    };
+    
+    const qrDataURL = await QRCode.toDataURL(data, qrOptions);
+    return qrDataURL;
+  } catch (error) {
+    console.error('High-quality QR generation error:', error);
+    // Fallback to external service
+    const qrData = encodeURIComponent(data);
+    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${qrData}&format=png&ecc=H`;
+  }
+};
+
+// Enhanced QR Code Component
+const QRCodeImage = ({ data, size = 400, className = '', onError }) => {
+  const [qrDataURL, setQrDataURL] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  
+  useEffect(() => {
+    let mounted = true;
+    
+    const generateQR = async () => {
+      try {
+        setLoading(true);
+        setError(false);
+        const url = await generateHighQualityQR(data, size);
+        if (mounted) {
+          setQrDataURL(url);
+        }
+      } catch (err) {
+        console.error('QR generation failed:', err);
+        if (mounted) {
+          setError(true);
+          if (onError) onError(err);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    generateQR();
+    
+    return () => {
+      mounted = false;
+    };
+  }, [data, size, onError]);
+  
+  if (loading) {
+    return (
+      <div className={`qr-loading ${className}`} style={{ width: size, height: size }}>
+        <div className="loading-spinner"></div>
+        <span>Generating QR...</span>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className={`qr-error ${className}`} style={{ width: size, height: size }}>
+        <span>❌ QR Generation Failed</span>
+      </div>
+    );
+  }
+  
+  return (
+    <img 
+      src={qrDataURL} 
+      alt="QR Code" 
+      className={className}
+      style={{ width: size, height: size }}
+      onError={(e) => {
+        console.error('QR image load failed');
+        setError(true);
+        if (onError) onError(new Error('Image load failed'));
+      }}
+    />
+  );
+};
+
+// Enhanced Helper Functions
 const generateAmountCode = (amount) => {
   const codeMapping = {'0':'S','1':'P','2':'I','3':'N','4':'K','5':'R','6':'E','7':'D','8':'J','9':'A'};
   const formattedAmount = String(Math.round(amount)).padStart(5, '0');
@@ -67,18 +164,20 @@ const amountInWords = (amount) => {
   return result.trim() + ' Rupees Only';
 };
 
-const generateQRCode = (data) => {
-  const qrData = encodeURIComponent(data);
-  return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrData}`;
-};
-
-// Alternative backup with better error handling
-const generateQRCodeWithFallback = (data, attempt = 0) => {
-  const qrData = encodeURIComponent(data);
-  const primaryUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrData}`;
-  const backupUrl = `https://quickchart.io/qr?text=${qrData}&size=150`;
-  
-  return attempt === 0 ? primaryUrl : backupUrl;
+const getSalesmenNames = (lehenga) => {
+  if (!lehenga || !lehenga.salesmen) return 'N/A';
+  const salesmen = lehenga.salesmen;
+  if (Array.isArray(salesmen)) return salesmen.filter(n => n).join(', ') || 'N/A';
+  if (typeof salesmen === 'object') {
+    const names = [];
+    if (salesmen.e) names.push(salesmen.e);
+    if (salesmen.i) names.push(salesmen.i);
+    Object.keys(salesmen).forEach(key => {
+      if (key !== 'e' && key !== 'i' && salesmen[key]) names.push(salesmen[key]);
+    });
+    return names.filter(n => n).join(', ') || 'N/A';
+  }
+  return 'N/A';
 };
 
 // Error Boundary Component
@@ -95,8 +194,6 @@ class PrintOrderErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     console.error('PrintOrder Error:', error, errorInfo);
     this.setState({ errorInfo });
-    // You can add error reporting service here like:
-    // logErrorToService(error, errorInfo);
   }
 
   render() {
@@ -145,7 +242,7 @@ function PrintOrder({ orderId, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [qrCodeAttempts, setQrCodeAttempts] = useState({});
+  const [qrCodeDataUrls, setQrCodeDataUrls] = useState({});
 
   // Memoized formatted order data
   const formattedOrder = useMemo(() => {
@@ -161,87 +258,17 @@ function PrintOrder({ orderId, onClose }) {
     };
   }, [order]);
 
-  // Memoized salesmen names getter
-  const getSalesmenNames = useCallback((lehenga) => {
-    if (!lehenga || !lehenga.salesmen) return 'N/A';
-    const salesmen = lehenga.salesmen;
-    if (Array.isArray(salesmen)) return salesmen.filter(n => n).join(', ') || 'N/A';
-    if (typeof salesmen === 'object') {
-      const names = [];
-      if (salesmen.e) names.push(salesmen.e);
-      if (salesmen.i) names.push(salesmen.i);
-      Object.keys(salesmen).forEach(key => {
-        if (key !== 'e' && key !== 'i' && salesmen[key]) names.push(salesmen[key]);
-      });
-      return names.filter(n => n).join(', ') || 'N/A';
-    }
-    return 'N/A';
-  }, []);
-
-  // Improved Firebase data fetching with better error handling and cleanup
-  useEffect(() => {
-    if (!orderId) {
-      setError('No order ID provided');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    
-    const orderRef = ref(db, `Orders/${orderId}`);
-    
-    const handleData = (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setOrder({ id: orderId, ...data });
-        setError(null);
-      } else {
-        setError(`Order #${orderId} not found`);
-      }
-      setLoading(false);
-    };
-
-    const handleError = (error) => {
-      console.error('Firebase error:', error);
-      setError('Failed to load order data. Please check your connection.');
-      setLoading(false);
-    };
-
-    try {
-      onValue(orderRef, handleData, handleError);
-    } catch (err) {
-      handleError(err);
-    }
-
-    // Improved cleanup function
-    return () => {
-      try {
-        off(orderRef, 'value', handleData);
-      } catch (err) {
-        console.log('Firebase listener cleanup completed');
-      }
-    };
-  }, [orderId]);
-
-  // QR Code error handler
-  const handleQrCodeError = useCallback((url, type) => {
-    const key = `${type}-${url}`;
-    setQrCodeAttempts(prev => ({
-      ...prev,
-      [key]: (prev[key] || 0) + 1
-    }));
-  }, []);
-
-  // Print content generators with improved error handling
-  const generateSmallReceiptHTML = useCallback(() => {
+  // Enhanced print content generators with high-quality QR
+  const generateSmallReceiptHTML = useCallback(async () => {
     if (!formattedOrder) return '';
     
     const pendingAmount = formattedOrder.pendingAmount;
     const qrData = `https://manager-e49ba.web.app/track.html?order=${formattedOrder.billNumber}`;
-    const qrAttemptKey = `small-${qrData}`;
-    const qrCodeUrl = generateQRCodeWithFallback(qrData, qrCodeAttempts[qrAttemptKey] || 0);
-
-    return `<!DOCTYPE html>
+    
+    try {
+      const qrCodeUrl = await generateHighQualityQR(qrData, 150);
+      
+      return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -272,7 +299,7 @@ function PrintOrder({ orderId, onClose }) {
     .notes-section{margin-bottom:6px;padding:4px;background:#fff3cd;border-radius:3px;border:1px solid #ffc107;font-size:10px}
     .no-return{text-align:center;font-weight:700;font-size:11px;color:#dc3545;margin:4px 0;padding:3px;background:#f8d7da;border:1px solid #dc3545;border-radius:3px}
     .qr-section{text-align:center;margin:4px 0;padding:2px}
-    .qr-section img{max-width:60px;height:60px}
+    .qr-section img{width:60px;height:60px;border:1px solid #ddd}
     .tracking-info{text-align:center;font-size:8px;color:#666;margin-top:2px;background:#f8f9fa;padding:3px;border-radius:2px}
     .receipt-footer{text-align:center;padding-top:4px;border-top:1px solid #000;font-size:9px}
     .signature{margin-top:6px;display:flex;justify-content:space-between}
@@ -330,7 +357,7 @@ function PrintOrder({ orderId, onClose }) {
     ${formattedOrder.notes ? `<div class="notes-section"><strong>Notes:</strong> ${formattedOrder.notes.substring(0, 80)}${formattedOrder.notes.length > 80 ? '...' : ''}</div>` : ''}
     <div class="no-return">🚫 NO EXCHANGE / NO RETURN</div>
     <div class="qr-section">
-      <img src="${qrCodeUrl}" alt="QR Code" onerror="this.onerror=null; this.src='${generateQRCodeWithFallback(qrData, 1)}'">
+      <img src="${qrCodeUrl}" alt="QR Code">
       <div class="tracking-info">
         <div style="font-weight:600;margin-bottom:1px">Scan to Track Your Order</div>
         <div>Track your order status online</div>
@@ -360,37 +387,42 @@ function PrintOrder({ orderId, onClose }) {
   </script>
 </body>
 </html>`;
-  }, [formattedOrder, getSalesmenNames, qrCodeAttempts]);
+    } catch (error) {
+      console.error('Error generating receipt:', error);
+      return '';
+    }
+  }, [formattedOrder]);
 
-  const generateReceiptHTML = useCallback(() => {
+  const generateReceiptHTML = useCallback(async () => {
     if (!formattedOrder) return '';
     
     const pendingAmount = formattedOrder.pendingAmount;
     const qrData = `https://manager-e49ba.web.app/track.html?order=${formattedOrder.billNumber}`;
-    const qrAttemptKey = `receipt-${qrData}`;
-    const qrCodeUrl = generateQRCodeWithFallback(qrData, qrCodeAttempts[qrAttemptKey] || 0);
 
-    const lehengaTableRows = formattedOrder.lehengaDetails && formattedOrder.lehengaDetails.length > 0
-      ? formattedOrder.lehengaDetails.map((lehenga, index) => {
-          const isUnstitched = lehenga.stitchingOption === 'Unstitched' || (!lehenga.length && !lehenga.waist && !lehenga.hip);
-          const mainDupatta = lehenga.mainDupatta || 'N/A';
-          const extraDupatta = lehenga.extraDupatta || 'No';
-          return `<tr>
-            <td style="border:1px solid #ddd;padding:4px;text-align:center;font-weight:600;font-size:9px">${index + 1}</td>
-            <td style="border:1px solid #ddd;padding:4px;font-size:9px">${lehenga.design ? lehenga.design.substring(0, 20) + (lehenga.design.length > 20 ? '...' : '') : 'N/A'}</td>
-            <td style="border:1px solid #ddd;padding:4px;font-size:9px">${lehenga.color ? lehenga.color.substring(0, 15) + (lehenga.color.length > 15 ? '...' : '') : 'N/A'}</td>
-            <td style="border:1px solid #ddd;padding:4px;font-size:9px">${lehenga.blouseOption ? lehenga.blouseOption.substring(0, 12) + (lehenga.blouseOption.length > 12 ? '...' : '') : 'N/A'}</td>
-            <td style="border:1px solid #ddd;padding:4px;font-size:9px">${mainDupatta.substring(0, 12) + (mainDupatta.length > 12 ? '...' : '')}</td>
-            <td style="border:1px solid #ddd;padding:4px;font-size:9px">${extraDupatta.substring(0, 8)}</td>
-            <td style="border:1px solid #ddd;padding:4px;text-align:center;font-size:9px">${isUnstitched ? 'Unstitched' : (lehenga.length || 'Free')}</td>
-            <td style="border:1px solid #ddd;padding:4px;text-align:center;font-size:9px">${isUnstitched ? '' : (lehenga.waist || 'Free')}</td>
-            <td style="border:1px solid #ddd;padding:4px;background:#f3e8ff;font-weight:600;color:#6b21a8;font-size:8px;text-align:center">${getSalesmenNames(lehenga).substring(0, 15) + (getSalesmenNames(lehenga).length > 15 ? '...' : '')}</td>
-            <td style="border:1px solid #ddd;padding:4px;text-align:right;font-weight:700;font-size:9px">₹${lehenga.amount ? parseFloat(lehenga.amount).toLocaleString('en-IN') : '0'}</td>
-          </tr>`;
-        }).join('')
-      : '<tr><td colspan="10" style="border:1px solid #ddd;padding:6px;text-align:center;font-size:10px">No lehenga details</td></tr>';
+    try {
+      const qrCodeUrl = await generateHighQualityQR(qrData, 200);
 
-    return `<!DOCTYPE html>
+      const lehengaTableRows = formattedOrder.lehengaDetails && formattedOrder.lehengaDetails.length > 0
+        ? formattedOrder.lehengaDetails.map((lehenga, index) => {
+            const isUnstitched = lehenga.stitchingOption === 'Unstitched' || (!lehenga.length && !lehenga.waist && !lehenga.hip);
+            const mainDupatta = lehenga.mainDupatta || 'N/A';
+            const extraDupatta = lehenga.extraDupatta || 'No';
+            return `<tr>
+              <td style="border:1px solid #ddd;padding:4px;text-align:center;font-weight:600;font-size:9px">${index + 1}</td>
+              <td style="border:1px solid #ddd;padding:4px;font-size:9px">${lehenga.design ? lehenga.design.substring(0, 20) + (lehenga.design.length > 20 ? '...' : '') : 'N/A'}</td>
+              <td style="border:1px solid #ddd;padding:4px;font-size:9px">${lehenga.color ? lehenga.color.substring(0, 15) + (lehenga.color.length > 15 ? '...' : '') : 'N/A'}</td>
+              <td style="border:1px solid #ddd;padding:4px;font-size:9px">${lehenga.blouseOption ? lehenga.blouseOption.substring(0, 12) + (lehenga.blouseOption.length > 12 ? '...' : '') : 'N/A'}</td>
+              <td style="border:1px solid #ddd;padding:4px;font-size:9px">${mainDupatta.substring(0, 12) + (mainDupatta.length > 12 ? '...' : '')}</td>
+              <td style="border:1px solid #ddd;padding:4px;font-size:9px">${extraDupatta.substring(0, 8)}</td>
+              <td style="border:1px solid #ddd;padding:4px;text-align:center;font-size:9px">${isUnstitched ? 'Unstitched' : (lehenga.length || 'Free')}</td>
+              <td style="border:1px solid #ddd;padding:4px;text-align:center;font-size:9px">${isUnstitched ? '' : (lehenga.waist || 'Free')}</td>
+              <td style="border:1px solid #ddd;padding:4px;background:#f3e8ff;font-weight:600;color:#6b21a8;font-size:8px;text-align:center">${getSalesmenNames(lehenga).substring(0, 15) + (getSalesmenNames(lehenga).length > 15 ? '...' : '')}</td>
+              <td style="border:1px solid #ddd;padding:4px;text-align:right;font-weight:700;font-size:9px">₹${lehenga.amount ? parseFloat(lehenga.amount).toLocaleString('en-IN') : '0'}</td>
+            </tr>`;
+          }).join('')
+        : '<tr><td colspan="10" style="border:1px solid #ddd;padding:6px;text-align:center;font-size:10px">No lehenga details</td></tr>';
+
+      return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -446,7 +478,7 @@ function PrintOrder({ orderId, onClose }) {
     .qr-info{flex:1;padding-right:8px}
     .qr-info h4{margin:0 0 4px 0;font-size:11px;color:#4a154b}
     .qr-info p{margin:2px 0;font-size:9px;color:#666}
-    .qr-code-compact img{max-width:70px;height:70px}
+    .qr-code-compact img{width:70px;height:70px;border:1px solid #ddd}
     
     .receipt-footer{text-align:center;padding-top:8px;border-top:1px solid #000;font-size:10px}
     .receipt-footer p{margin:3px 0}
@@ -604,7 +636,7 @@ function PrintOrder({ orderId, onClose }) {
         <p style="font-weight:600;color:#4a154b;margin-top:4px">Order #${formattedOrder.billNumber}</p>
       </div>
       <div class="qr-code-compact">
-        <img src="${qrCodeUrl}" alt="QR Code" onerror="this.onerror=null; this.src='${generateQRCodeWithFallback(qrData, 1)}'">
+        <img src="${qrCodeUrl}" alt="QR Code">
       </div>
     </div>
 
@@ -638,23 +670,27 @@ function PrintOrder({ orderId, onClose }) {
   </script>
 </body>
 </html>`;
-  }, [formattedOrder, getSalesmenNames, qrCodeAttempts]);
+    } catch (error) {
+      console.error('Error generating receipt:', error);
+      return '';
+    }
+  }, [formattedOrder]);
 
-  const generateStickerHTML = useCallback(() => {
+  const generateStickerHTML = useCallback(async () => {
     if (!formattedOrder || !formattedOrder.lehengaDetails) return '';
 
     const stickersToGenerate = selectedLehengaIndex === 'all' 
       ? formattedOrder.lehengaDetails 
       : [formattedOrder.lehengaDetails[parseInt(selectedLehengaIndex)]];
 
+    const qrData = `https://manager-e49ba.web.app/track.html?order=${formattedOrder.billNumber}`;
+    const qrCodeUrl = await generateHighQualityQR(qrData, 150);
+
     const stickersHTML = stickersToGenerate.map((lehenga, index) => {
       const actualIndex = selectedLehengaIndex === 'all' ? index : parseInt(selectedLehengaIndex);
       const amountCode = generateAmountCode(lehenga.amount || 0);
       const isUnstitched = lehenga.stitchingOption === 'Unstitched' || (!lehenga.length && !lehenga.waist && !lehenga.hip);
       const salesmenNames = getSalesmenNames(lehenga);
-      const qrData = `https://manager-e49ba.web.app/track.html?order=${formattedOrder.billNumber}`;
-      const qrAttemptKey = `sticker-${qrData}-${actualIndex}`;
-      const qrCodeUrl = generateQRCodeWithFallback(qrData, qrCodeAttempts[qrAttemptKey] || 0);
       const mainDupatta = lehenga.mainDupatta || 'N/A';
       const extraDupatta = lehenga.extraDupatta || 'No';
 
@@ -664,7 +700,7 @@ function PrintOrder({ orderId, onClose }) {
             <div class="sticker-header">
               <div class="bill-number">Bill #${formattedOrder.billNumber}</div>
               <div class="qr-code">
-                <img src="${qrCodeUrl}" alt="QR" style="width:45px;height:45px" onerror="this.onerror=null; this.src='${generateQRCodeWithFallback(qrData, 1)}'">
+                <img src="${qrCodeUrl}" alt="QR" style="width:45px;height:45px">
               </div>
             </div>
             <div class="lehenga-number">
@@ -794,9 +830,54 @@ function PrintOrder({ orderId, onClose }) {
   </script>
 </body>
 </html>`;
-  }, [formattedOrder, selectedLehengaIndex, getSalesmenNames, qrCodeAttempts]);
+  }, [formattedOrder, selectedLehengaIndex]);
 
-  // Improved print handler with error handling and double-click prevention
+  // Improved Firebase data fetching with better error handling and cleanup
+  useEffect(() => {
+    if (!orderId) {
+      setError('No order ID provided');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
+    const orderRef = ref(db, `Orders/${orderId}`);
+    
+    const handleData = (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setOrder({ id: orderId, ...data });
+        setError(null);
+      } else {
+        setError(`Order #${orderId} not found`);
+      }
+      setLoading(false);
+    };
+
+    const handleError = (error) => {
+      console.error('Firebase error:', error);
+      setError('Failed to load order data. Please check your connection.');
+      setLoading(false);
+    };
+
+    try {
+      onValue(orderRef, handleData, handleError);
+    } catch (err) {
+      handleError(err);
+    }
+
+    // Improved cleanup function
+    return () => {
+      try {
+        off(orderRef, 'value', handleData);
+      } catch (err) {
+        console.log('Firebase listener cleanup completed');
+      }
+    };
+  }, [orderId]);
+
+  // Enhanced print handler with high-quality QR codes
   const handlePrint = useCallback(async () => {
     if (!formattedOrder || isPrinting) {
       return;
@@ -805,21 +886,21 @@ function PrintOrder({ orderId, onClose }) {
     setIsPrinting(true);
     setError(null);
 
-    const htmlGenerators = {
-      customerReceipt: generateSmallReceiptHTML,
-      officeReceipt: generateReceiptHTML,
-      sticker: generateStickerHTML
-    };
-
-    const htmlContent = htmlGenerators[printType]?.();
-    
-    if (!htmlContent) {
-      setError('Could not generate print content');
-      setIsPrinting(false);
-      return;
-    }
-
     try {
+      const htmlGenerators = {
+        customerReceipt: generateSmallReceiptHTML,
+        officeReceipt: generateReceiptHTML,
+        sticker: generateStickerHTML
+      };
+
+      const htmlContent = await htmlGenerators[printType]?.();
+      
+      if (!htmlContent) {
+        setError('Could not generate print content');
+        setIsPrinting(false);
+        return;
+      }
+
       const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
       if (!printWindow) {
         setError('Popup blocked! Please allow popups for this site.');
@@ -1078,8 +1159,4 @@ export default function PrintOrderWithErrorBoundary(props) {
       <PrintOrder {...props} />
     </PrintOrderErrorBoundary>
   );
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 3671cdd9e48fe55a9b70ebdcf55912ebbe6c5f56
